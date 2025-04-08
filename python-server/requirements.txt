@@ -1,0 +1,5 @@
+flask
+pika==1.2.0
+google-generativeai
+python-dotenv
+Werkzeug==2.0.1
