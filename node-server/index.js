@@ -1,8 +1,11 @@
 import fetch from 'node-fetch';
 import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+const { Client, LocalAuth, MessageMedia } = pkg;
 import qrcode from 'qrcode-terminal';
 import amqp from 'amqplib';
+import fs from 'fs';
+import path from 'path';
+
 
 const API_URL = process.env.API_URL || 'http://python-api:5000';
 
@@ -25,35 +28,49 @@ const client = new Client({
 
 client.on('message', async msg => {
     try {
+        // Ignore status broadcasts and empty messages
+        if (msg.from === 'status@broadcast' || !msg.body) {
+            return;
+        }
+
         console.log('Received WhatsApp message:', {
             from: msg.from,
             body: msg.body
         });
 
-        const response = await fetch(`${API_URL}/send`, {
+        // Send message to Python API
+        const response = await fetch('http://python-api:5000/send', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                number: msg.from.split('@')[0],
+                number: msg.from,
                 message: msg.body
-            }),
-            timeout: 5000
+            })
         });
 
         const data = await response.json();
         console.log('Python API response:', data);
 
-        if (data.success && data.response) {
+        if (data.success) {
+            // Handle text response
             await msg.reply(data.response);
-        } else {
-            throw new Error(data.error || 'Invalid response from API');
-        }
 
+            // Handle image if present
+            if (data.image) {
+                try {
+                    const media = await MessageMedia.fromUrl(data.image);
+                    await msg.reply(media);
+                } catch (imageError) {
+                    console.error('Error sending image:', imageError);
+                }
+            }
+        } else {
+            console.error('API Error:', data.error);
+        }
     } catch (error) {
         console.error('Error processing message:', error);
-        await msg.reply('I apologize, but I am having trouble understanding. Please try typing "#" to start over.');
     }
 });
 
@@ -68,6 +85,7 @@ client.on('ready', () => {
     console.log('WhatsApp client is ready!');
     connectQueue();
 });
+
 
 client.on('auth_failure', msg => {
     console.error('Authentication failed:', msg);
