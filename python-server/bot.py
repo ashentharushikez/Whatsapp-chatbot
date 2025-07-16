@@ -125,7 +125,10 @@ def detect_intent(message, language):
             "stock_inquiry": [r"(do you have|is there|are there).*?in stock"],
         },
         "sinhala": {
-            "product_inquiry": [r"(දුරකථන|ෆෝන්|සැම්සං|අයිෆෝන්).*?(තියෙනවද|විකුණනවද)"],
+            "product_inquiry": [
+                r"(දුරකථන|ෆෝන්|සැම්සං|අයිෆෝන්).*?(තියෙනවද|විකුණනවද|ඕන|ගන්න)",  # Added ඕන and ගන්න
+                r"මට.*?(දුරකථන|ෆෝන්|සැම්සං|අයිෆෝන්).*?(ඕන|තියෙනවද)"  # Added pattern for "මට ... ඕන"
+            ],
             "accessory_inquiry": [r"(චාජර්|කේබල්|කවර|ග්ලාස්|හෙඩ්ෆෝන්).*?(තියෙනවද|විකුණනවද)"],
             "repair_inquiry": [r"(හදන්න|ප්‍රතිස්ථාපනය).*?(තිරය|බැටරිය|දුරකථනය)"],
             "location_inquiry": [r"(ලිපිනය|ස්ථානය|කොහේද)"],
@@ -197,8 +200,7 @@ def get_product_image(category, brand, model):
 def get_prompt_by_language(message, state, context, history):
     base_info = SHOP_INFO[state.language]
     if state.language == "sinhala":
-        return f"""ඔබ සුන් මොබයිල් හොරණ සහකරු ලෙස පාරිභෝගිකයාගේ විමසුමට උදව් kරන්න.
-පෙර සංවාදය: {history}
+        return f"""ඔබ සුන් මොබයිල් හොරණ සහකරු ලෙස පාරිභෝගිකයාගේ විමසුමට උදව් කරන්න.
 වත්මන් සාප්පු තොරතුරු:
 - වෙළඳ නාම: {', '.join(base_info['brands'])}
 - සේවා: {', '.join(base_info['services'])}
@@ -209,7 +211,6 @@ def get_prompt_by_language(message, state, context, history):
 සිංහලෙන් මිත්‍රශීලී, කෙටි, වෘත්තීය පිළිතුරු දෙන්න."""
     else:
         return f"""You are an assistant for Sun Mobile Horana, helping with customer queries.
-Previous conversation: {history}
 Current shop info:
 - Brands: {', '.join(base_info['brands'])}
 - Services: {', '.join(base_info['services'])}
@@ -224,12 +225,11 @@ def get_ai_response(message, state):
         shop_info = SHOP_INFO[state.language]
         intent = detect_intent(message, state.language)
         product_details = extract_product_details(message, state.language)
-        history = "\n".join([f"Customer: {m['message']}\nBot: {m['response']}" for m in state.conversation_history[-3:]])
         specific_context = ""
         if intent == "product_inquiry" and "brand" in product_details:
             brand = product_details["brand"]
             specific_context = f"Customer is asking about {brand} phones."
-        prompt = get_prompt_by_language(message, state, specific_context, history)
+        prompt = get_prompt_by_language(message, state, specific_context, "")
         if model:
             response = model.generate_content(prompt)
             return response.text.strip()
@@ -255,14 +255,21 @@ def process_message(message, state):
         logger.info(f"Processing message: '{message}' in stage: {state.current_stage}")
 
         # Reset command
-        if message == "*":
+        if message.lower() == "#reset":
             state.reset()
-            return {"text": MESSAGES["english"]["welcome"]}
+            state.is_first_message = False
+            return {
+                "text": MESSAGES["english"]["welcome"],
+                "image": request.host_url.rstrip('/') + "/static/images/logo/shop_logo.jpg"
+            }
 
         # First message
         if state.is_first_message:
             state.is_first_message = False
-            return {"text": MESSAGES["english"]["welcome"]}
+            return {
+                "text": MESSAGES["english"]["welcome"],
+                "image": request.host_url.rstrip('/') + "/static/images/logo/shop_logo.jpg"
+            }
 
         # Language selection
         if state.current_stage == "welcome":
@@ -289,15 +296,27 @@ def process_message(message, state):
         intent = detect_intent(message, state.language)
         product_details = extract_product_details(message, state.language)
 
-        if "iphone" in message.lower() or "apple" in message.lower():
-            response_text = ("Here are our iPhone models:\n"
-                           "- iPhone 15 series (starting from Rs. 275,000)\n"
-                           "- iPhone 14 series (starting from Rs. 225,000)\n"
-                           "- iPhone 13 series (starting from Rs. 195,000)\n"
-                           "Which model would you like to know more about?")
+        if "iphone" in message.lower() or "apple" in message.lower() or "අයිෆෝන්" in message:
+            response_text = {
+                "english": ("Here are our iPhone models:\n"
+                          "- iPhone 15 series (starting from Rs. 275,000)\n"
+                          "- iPhone 14 series (starting from Rs. 225,000)\n"
+                          "- iPhone 13 series (starting from Rs. 195,000)\n"
+                          "Which model would you like to know more about?"),
+                "sinhala": ("අපගේ iPhone මොඩල්:\n"
+                           "- iPhone 15 (රු. 275,000 සිට)\n"
+                           "- iPhone 14 (රු. 225,000 සිට)\n"
+                           "- iPhone 13 (රු. 195,000 සිට)\n"
+                           "කුමන මොඩලය ගැන දැන ගැනීමට කැමතිද?"),
+                "singlish": ("Apey iPhone models:\n"
+                           "- iPhone 15 (Rs. 275,000 idan)\n"
+                           "- iPhone 14 (Rs. 225,000 idan)\n"
+                           "- iPhone 13 (Rs. 195,000 idan)\n"
+                           "Monawa gana details oned?")
+            }
             image_path = "/static/images/phones/apple/iphone15.jpeg"
             return {
-                "text": response_text,
+                "text": response_text[state.language],
                 "image": request.host_url.rstrip('/') + image_path if os.path.exists(os.path.join(app.static_folder, "images/phones/apple/iphone15.jpeg")) else None
             }
 

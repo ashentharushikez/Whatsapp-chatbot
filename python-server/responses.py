@@ -7,7 +7,8 @@ Choose your preferred language:
 1 English
 2 සිංහල
 3 Singlish
-[Reply with the number of your choice.]""",
+[Reply with the number of your choice.]
+[Type #reset anytime to start over]""",
         "menu": """Hello! Please select an option:
 1 Mobile Phones
 2 Phone Accessories
@@ -25,7 +26,8 @@ Choose your preferred language:
 1 English
 2 සිංහල
 3 Singlish
-[ඔබේ තේරීම සඳහා අංකය ඇතුළත් කරන්න.]""",
+[ඔබේ තේරීම සඳහා අංකය ඇතුළත් කරන්න.]
+[නැවත ආරම්භ කිරීමට #reset ටයිප් කරන්න]""",
         "menu": """ආයුබෝවන්! ඔබට අවශ්‍ය සේවාව තෝරන්න:
 1 ජංගම දුරකථන
 2 උපාංග
@@ -43,7 +45,8 @@ Language eka thoranna:
 1 English
 2 සිංහල
 3 Singlish
-[Number eka reply karanna.]""",
+[Number eka reply karanna.]
+[Chat eka reset karanna #reset type karanna]""",
         "menu": """Ayubowan! Service eka select karanna:
 1 Mobile Phones
 2 Accessories

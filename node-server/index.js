@@ -6,6 +6,13 @@ import amqp from 'amqplib';
 import fs from 'fs';
 import path from 'path';
 
+// Add MIME type mapping
+const MIME_TYPES = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif'
+};
 
 const API_URL = process.env.API_URL || 'http://python-api:5000';
 
@@ -28,17 +35,10 @@ const client = new Client({
 
 client.on('message', async msg => {
     try {
-        // Ignore status broadcasts and empty messages
         if (msg.from === 'status@broadcast' || !msg.body) {
             return;
         }
 
-        console.log('Received WhatsApp message:', {
-            from: msg.from,
-            body: msg.body
-        });
-
-        // Send message to Python API
         const response = await fetch('http://python-api:5000/send', {
             method: 'POST',
             headers: {
@@ -51,26 +51,45 @@ client.on('message', async msg => {
         });
 
         const data = await response.json();
-        console.log('Python API response:', data);
 
         if (data.success) {
-            // Handle text response
-            await msg.reply(data.response);
-
-            // Handle image if present
             if (data.image) {
                 try {
-                    const media = await MessageMedia.fromUrl(data.image);
-                    await msg.reply(media);
+                    // Log the image URL for debugging
+                    console.log('Attempting to fetch image from:', data.image);
+                    
+                    // Use the correct path format
+                    const imageUrl = data.image.startsWith('http') 
+                        ? data.image 
+                        : `http://python-api:5000/static/image${data.image}`;
+
+                    console.log('Full image URL:', imageUrl);
+
+                    const imageResponse = await fetch(imageUrl);
+                    if (!imageResponse.ok) {
+                        throw new Error(`Failed to fetch image: ${imageResponse.statusText} (${imageUrl})`);
+                    }
+
+                    const buffer = await imageResponse.buffer();
+                    const media = new MessageMedia(
+                        'image/jpeg',
+                        buffer.toString('base64'),
+                        'shop_image.jpg'
+                    );
+
+                    await client.sendMessage(msg.from, media, {
+                        caption: data.response || data.text
+                    });
                 } catch (imageError) {
-                    console.error('Error sending image:', imageError);
+                    console.error('Error fetching/sending image:', imageError);
+                    await client.sendMessage(msg.from, data.response || data.text);
                 }
+            } else {
+                await client.sendMessage(msg.from, data.response || data.text);
             }
-        } else {
-            console.error('API Error:', data.error);
         }
     } catch (error) {
-        console.error('Error processing message:', error);
+        console.error('Error in message handler:', error);
     }
 });
 
